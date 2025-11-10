@@ -68,16 +68,19 @@ function SprintServer.SetupCharacter(player, character)
     if humanoid then
         playerData.humanoid = humanoid
 
-        -- Apply saved sprint state
+        -- Apply saved sprint state (persisted across respawns)
         local targetSpeed = playerData.isSprinting and Config.SPRINT_SPEED or Config.NORMAL_SPEED
         humanoid.WalkSpeed = targetSpeed
 
-        -- Send initial sync
+        -- Send initial sync with persisted state
         RemoteEvents.SendSync(player, {
             isSprinting = playerData.isSprinting,
             currentSpeed = targetSpeed,
             timestamp = tick()
         })
+
+        print(string.format("[SprintServer] Character setup for %s - sprint state: %s",
+            player.Name, playerData.isSprinting and "ON" or "OFF"))
     end
 
     -- Handle character removal

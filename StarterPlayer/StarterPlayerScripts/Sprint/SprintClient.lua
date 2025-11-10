@@ -51,11 +51,13 @@ function SprintClient.WaitForCharacter()
         character = newCharacter
         humanoid = character:WaitForChild("Humanoid")
 
-        -- Reset state on new character
-        isSprinting = false
+        -- Request current sprint state from server on respawn
+        RemoteEvents.FireToggle(isSprinting) -- This will trigger server to send current state
+
+        -- Reset request timing but keep sprint state
         lastRequestTime = 0
 
-        print("[SprintClient] Character loaded")
+        print("[SprintClient] Character loaded - requesting state sync")
     end
 
     if player.Character then
