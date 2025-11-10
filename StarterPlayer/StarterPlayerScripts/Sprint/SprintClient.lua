@@ -1,4 +1,4 @@
--- SprintClient.lua
+-- SprintClient.lua (MODIFIED FOR ROBUST RESPAWN)
 -- Client-side controller & input handling
 -- Logic & input, separate from GUI
 
@@ -20,6 +20,7 @@ local lastRequestTime = 0
 local throttleActive = false
 local character = nil
 local humanoid = nil
+local isWaitingForSync = false -- NEW: Prevent duplicate requests
 
 -- GUI reference (will be set by SprintGUI)
 local sprintGUI = nil
@@ -51,13 +52,21 @@ function SprintClient.WaitForCharacter()
         character = newCharacter
         humanoid = character:WaitForChild("Humanoid")
 
-        -- Request current sprint state from server on respawn
-        RemoteEvents.FireToggle(isSprinting) -- This will trigger server to send current state
-
-        -- Reset request timing but keep sprint state
+        -- NEW: Wait for server to send authoritative state
+        -- Don't send toggle request, just wait for sync
+        isWaitingForSync = true
         lastRequestTime = 0
 
-        print("[SprintClient] Character loaded - requesting state sync")
+        print("[SprintClient] Character loaded - waiting for server sync...")
+
+        -- NEW: Timeout fallback if server doesn't respond
+        task.delay(2, function()
+            if isWaitingForSync then
+                warn("[SprintClient] Server sync timeout - requesting manual sync")
+                -- Send current state as query (server will respond with correct state)
+                RemoteEvents.FireToggle(isSprinting)
+            end
+        end)
     end
 
     if player.Character then
@@ -69,21 +78,17 @@ end
 
 -- Setup input handling
 function SprintClient.SetupInputHandling()
-    -- Keyboard input (only on key press, not release)
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-
-        if input.KeyCode == Config.DEFAULT_KEYBIND then
-            SprintClient.RequestToggle()
-        end
-    end)
-
+    -- No keyboard input - using GUI button only
     -- Mobile touch (handled by GUI)
 end
 
 -- Request sprint toggle
 function SprintClient.RequestToggle()
     if throttleActive then return end
+    if isWaitingForSync then 
+        warn("[SprintClient] Still waiting for server sync - ignoring toggle")
+        return 
+    end
 
     -- Local throttle check
     local timeSinceLastRequest = tick() - lastRequestTime
@@ -109,14 +114,24 @@ function SprintClient.RequestToggle()
     lastRequestTime = tick()
 end
 
--- Handle server sync
+-- Handle server sync (MODIFIED)
 function SprintClient.OnSyncReceived(syncData)
-    -- Update local state from server
+    -- NEW: Clear waiting flag
+    isWaitingForSync = false
+
+    -- Update local state from server (authoritative)
+    local previousState = isSprinting
     SprintClient.SetLocalState(syncData.isSprinting)
 
     -- Update GUI
     if sprintGUI then
         sprintGUI.UpdateVisualState(syncData.isSprinting)
+    end
+
+    -- NEW: Log state changes for debugging
+    if previousState ~= syncData.isSprinting then
+        print(string.format("[SprintClient] State synced from server: %s -> %s",
+            tostring(previousState), tostring(syncData.isSprinting)))
     end
 end
 
@@ -137,10 +152,10 @@ end
 
 -- Check if can toggle
 function SprintClient.CanToggle()
-    return not throttleActive and character and humanoid
+    return not throttleActive and not isWaitingForSync and character and humanoid
 end
 
--- Set GUI reference (deprecated, now auto-required)
+-- Set GUI reference
 function SprintClient.SetGUI(guiModule)
     sprintGUI = guiModule
 end
@@ -157,6 +172,7 @@ function SprintClient.Cleanup()
     character = nil
     humanoid = nil
     sprintGUI = nil
+    isWaitingForSync = false
 end
 
 -- Initialize when script runs

@@ -1,4 +1,4 @@
--- SprintServer.lua
+-- SprintServer.lua (MODIFIED FOR ROBUST RESPAWN)
 -- Main server orchestrator
 -- Handles player management, remote events, anti-cheat monitoring
 
@@ -58,45 +58,65 @@ function SprintServer.OnPlayerAdded(player)
     end
 end
 
--- Setup character connections
+-- Setup character connections (MODIFIED)
 function SprintServer.SetupCharacter(player, character)
     local playerData = activePlayers[player]
     if not playerData then return end
+
+    -- Wait a frame to ensure character is fully loaded
+    task.wait(0.1)
 
     playerData.character = character
     local humanoid = character:FindFirstChild("Humanoid")
     if humanoid then
         playerData.humanoid = humanoid
 
-        -- Apply saved sprint state (persisted across respawns)
+        -- NEW: Apply saved sprint state IMMEDIATELY
         local targetSpeed = playerData.isSprinting and Config.SPRINT_SPEED or Config.NORMAL_SPEED
         humanoid.WalkSpeed = targetSpeed
 
-        -- Send initial sync with persisted state
-        RemoteEvents.SendSync(player, {
-            isSprinting = playerData.isSprinting,
-            currentSpeed = targetSpeed,
-            timestamp = tick()
-        })
+        -- NEW: Force sync to client multiple times to ensure delivery
+        local function sendSync()
+            RemoteEvents.SendSync(player, {
+                isSprinting = playerData.isSprinting,
+                currentSpeed = targetSpeed,
+                timestamp = tick()
+            })
+        end
 
-        print(string.format("[SprintServer] Character setup for %s - sprint state: %s",
-            player.Name, playerData.isSprinting and "ON" or "OFF"))
+        -- Send initial sync
+        sendSync()
+
+        -- Send again after small delay (in case client wasn't ready)
+        task.delay(0.1, sendSync)
+        task.delay(0.3, sendSync)
+
+        print(string.format("[SprintServer] Character setup for %s - sprint state: %s (speed: %d)",
+            player.Name, playerData.isSprinting and "ON" or "OFF", targetSpeed))
     end
 
-    -- Handle character removal
-    character:WaitForChild("Humanoid").Died:Connect(function()
+    -- Handle character removal (MODIFIED - DON'T reset state)
+    humanoid.Died:Connect(function()
         SprintServer.OnCharacterDied(player)
     end)
 end
 
--- Handle character death
+-- Handle character death (MODIFIED - Keep sprint state)
 function SprintServer.OnCharacterDied(player)
     local playerData = activePlayers[player]
     if not playerData then return end
 
-    -- Reset to normal speed on death
-    playerData.isSprinting = false
-    PlayerDataManager.UpdateSprintState(player, false)
+    -- NEW: DON'T reset sprint state - keep it for next respawn
+    -- OLD CODE (REMOVED):
+    -- playerData.isSprinting = false
+    -- PlayerDataManager.UpdateSprintState(player, false)
+
+    -- NEW: Just clear character references
+    playerData.character = nil
+    playerData.humanoid = nil
+
+    print(string.format("[SprintServer] %s died - sprint state preserved: %s",
+        player.Name, playerData.isSprinting and "ON" or "OFF"))
 end
 
 -- Handle player leaving
@@ -132,11 +152,21 @@ function SprintServer.OnToggleRequested(player, requestedState)
             timestamp = tick()
         })
 
-        print(string.format("[SprintServer] Sprint %s for %s",
-            requestedState and "enabled" or "disabled", player.Name))
+        print(string.format("[SprintServer] Sprint %s for %s (speed: %d)",
+            requestedState and "enabled" or "disabled", player.Name, validation.targetSpeed))
     else
         warn(string.format("[SprintServer] Toggle rejected for %s: %s",
             player.Name, validation.reason))
+        
+        -- NEW: Send current state back to client even if rejected
+        local playerData = activePlayers[player]
+        if playerData then
+            RemoteEvents.SendSync(player, {
+                isSprinting = playerData.isSprinting,
+                currentSpeed = playerData.isSprinting and Config.SPRINT_SPEED or Config.NORMAL_SPEED,
+                timestamp = tick()
+            })
+        end
     end
 end
 

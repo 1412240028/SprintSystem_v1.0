@@ -166,11 +166,11 @@ After setup, run the game and verify:
  ✅ [SprintClient] Initializing... appears
  ✅ [SprintGUI] Initializing... appears
  ✅ GUI button visible on screen
- ✅ LeftShift key toggles sprint
+ ❌ LeftShift key toggles sprint (DISABLED - using button only)
  ✅ Button click toggles sprint
  ✅ Speed changes (16 → 24 → 16)
- ✅ Sprint state persists on respawn (NEW: sprint state maintained across character respawns)
- ✅ GUI updates correctly on respawn (NEW: button shows correct state after respawn)
+ ✅ Sprint state persists on respawn (sprint state maintained across character respawns)
+ ✅ GUI updates correctly on respawn (button shows correct state after respawn)
 ⚠️ Common Mistakes to Avoid
 ❌ Mistake 1: SprintGUI as LocalScript
 ❌ WRONG:
