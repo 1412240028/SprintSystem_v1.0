@@ -26,6 +26,9 @@ function PlayerDataManager.CreatePlayerData(player)
     data.humanoid = nil
     data.lastSpeedCheck = 0
     data.speedViolations = 0
+    -- Checkpoint System integration
+    data.lastCheckpointId = nil
+    data.checkpointTimestamp = 0
 
     playerDataCache[player] = data
     return data
@@ -46,6 +49,15 @@ function PlayerDataManager.UpdateSprintState(player, isSprinting)
     data.toggleCount = data.toggleCount + 1
 end
 
+-- Update checkpoint data (Checkpoint System integration)
+function PlayerDataManager.UpdateCheckpointData(player, checkpointId)
+    local data = playerDataCache[player]
+    if not data then return end
+
+    data.lastCheckpointId = checkpointId
+    data.checkpointTimestamp = tick()
+end
+
 -- Save player data to DataStore
 function PlayerDataManager.SavePlayerData(player)
     local data = playerDataCache[player]
@@ -56,7 +68,10 @@ function PlayerDataManager.SavePlayerData(player)
         isSprinting = data.isSprinting,
         toggleCount = data.toggleCount,
         speedViolations = data.speedViolations,
-        lastPlayedVersion = "1.0"
+        lastPlayedVersion = "1.0",
+        -- Checkpoint System integration
+        lastCheckpointId = data.lastCheckpointId,
+        checkpointTimestamp = data.checkpointTimestamp
     }
 
     -- Retry logic with exponential backoff
@@ -99,15 +114,21 @@ function PlayerDataManager.LoadPlayerData(player)
         data.isSprinting = loadedData.isSprinting or false
         data.toggleCount = loadedData.toggleCount or 0
         data.speedViolations = loadedData.speedViolations or 0
+        -- Checkpoint System integration
+        data.lastCheckpointId = loadedData.lastCheckpointId or nil
+        data.checkpointTimestamp = loadedData.checkpointTimestamp or 0
 
-        print(string.format("[PlayerDataManager] Loaded data for %s (sprinting: %s, toggles: %d)",
-            player.Name, tostring(data.isSprinting), data.toggleCount))
+        print(string.format("[PlayerDataManager] Loaded data for %s (sprinting: %s, toggles: %d, checkpoint: %s)",
+            player.Name, tostring(data.isSprinting), data.toggleCount, tostring(data.lastCheckpointId)))
     else
         -- Use defaults
         warn(string.format("[PlayerDataManager] Load failed for %s, using defaults", player.Name))
         data.isSprinting = false
         data.toggleCount = 0
         data.speedViolations = 0
+        -- Checkpoint System integration
+        data.lastCheckpointId = nil
+        data.checkpointTimestamp = 0
     end
 end
 
