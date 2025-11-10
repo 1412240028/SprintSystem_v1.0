@@ -198,11 +198,22 @@ end
 
 -- Animate button press
 function SprintGUI.AnimatePress(isPressed)
+    if not sprintButton then return end
+
+    local currentSize = sprintButton.Size
     local targetScale = isPressed and Config.PRESS_SCALE or 1
     local duration = isPressed and Config.PRESS_DURATION or Config.RELEASE_DURATION
 
+    -- Calculate target size based on original size, not absolute scale
+    local targetSize = UDim2.new(
+        currentSize.X.Scale * targetScale,
+        currentSize.X.Offset * targetScale,
+        currentSize.Y.Scale * targetScale,
+        currentSize.Y.Offset * targetScale
+    )
+
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    local scaleTween = TweenService:Create(sprintButton, tweenInfo, {Size = UDim2.new(targetScale, 0, targetScale, 0)})
+    local scaleTween = TweenService:Create(sprintButton, tweenInfo, {Size = targetSize})
     scaleTween:Play()
 end
 

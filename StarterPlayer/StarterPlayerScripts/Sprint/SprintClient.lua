@@ -67,16 +67,8 @@ end
 
 -- Setup input handling
 function SprintClient.SetupInputHandling()
-    -- Keyboard input
+    -- Keyboard input (only on key press, not release)
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-
-        if input.KeyCode == Config.DEFAULT_KEYBIND then
-            SprintClient.RequestToggle()
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input, gameProcessed)
         if gameProcessed then return end
 
         if input.KeyCode == Config.DEFAULT_KEYBIND then
